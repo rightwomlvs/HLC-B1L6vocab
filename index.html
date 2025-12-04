@@ -1,0 +1,1020 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>單字大挑戰 - Google Sites Embed</title>
+    
+    <!-- 1. 引入 Tailwind CSS (樣式庫) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- 2. 引入 React 和 ReactDOM -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+    
+    <!-- 3. 引入 Babel (讓瀏覽器看不懂的 JSX 語法變成看得懂的 JS) -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <style>
+        /* 避免 iOS 點擊閃爍 */
+        * { -webkit-tap-highlight-color: transparent; }
+        /* 隱藏捲軸但保留功能 */
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        
+        /* 動畫樣式 */
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        .animate-in { animation: fadeIn 0.5s ease-out forwards; }
+        
+        @keyframes bounceIn {
+            0% { transform: scale(0.3); opacity: 0; }
+            50% { transform: scale(1.05); opacity: 1; }
+            70% { transform: scale(0.9); }
+            100% { transform: scale(1); }
+        }
+        .zoom-in { animation: bounceIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 antialiased">
+    
+    <!-- React 應用程式掛載點 -->
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useCallback, useRef } = React;
+
+        // =================================================================
+        // 重要：請將您部署好的 Google Apps Script 網頁應用程式網址貼在下方引號中
+        // =================================================================
+        const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycby_ItBq4a52QohWZtiHJQwnXsuaIqwxSuLcIy47jLZxK5rR3LtV3DT7h9G5NBv-PGA5/exec"; 
+        
+        // --- 1. SVG Icons (取代 Lucide-react) ---
+        const IconBase = ({ size = 24, className = "", children, ...props }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} {...props}>{children}</svg>
+        );
+
+        const Volume2 = (props) => <IconBase {...props}><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" /><path d="M15.54 8.46a5 5 0 0 1 0 7.07" /><path d="M19.07 4.93a10 10 0 0 1 0 14.14" /></IconBase>;
+        const Check = (props) => <IconBase {...props}><polyline points="20 6 9 17 4 12" /></IconBase>;
+        const X = (props) => <IconBase {...props}><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></IconBase>;
+        const Trophy = (props) => <IconBase {...props}><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" /><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" /><path d="M4 22h16" /><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22" /><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22" /><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" /></IconBase>;
+        const BookOpen = (props) => <IconBase {...props}><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" /><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" /></IconBase>;
+        const Brain = (props) => <IconBase {...props}><path d="M12 5a3 3 0 1 0-5.997.125 4 4 0 0 0-2.526 5.77 4 4 0 0 0 .556 6.588A4 4 0 1 0 12 18Z" /><path d="M12 5a3 3 0 1 1 5.997.125 4 4 0 0 1 2.526 5.77 4 4 0 0 1-.556 6.588A4 4 0 1 1 12 18Z" /><path d="M12 5v14" /><path d="M12 12h7" /><path d="M12 12H5" /></IconBase>;
+        const Ear = (props) => <IconBase {...props}><path d="M6 8.5a6.5 6.5 0 1 1 13 0c0 6-6 6-6 10a3.5 3.5 0 1 1-7 0" /><path d="M15 8.5a2.5 2.5 0 0 0-5 0v1a2 2 0 1 1 0 4" /></IconBase>;
+        const Keyboard = (props) => <IconBase {...props}><rect width="20" height="16" x="2" y="4" rx="2" ry="2" /><path d="M6 8h.001" /><path d="M10 8h.001" /><path d="M14 8h.001" /><path d="M18 8h.001" /><path d="M6 12h.001" /><path d="M10 12h.001" /><path d="M14 12h.001" /><path d="M18 12h.001" /></IconBase>;
+        const RotateCcw = (props) => <IconBase {...props}><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" /><path d="M3 3v5h5" /></IconBase>;
+        const Home = (props) => <IconBase {...props}><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><polyline points="9 22 9 12 15 12 15 22" /></IconBase>;
+        const Clock = (props) => <IconBase {...props}><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></IconBase>;
+        const LogIn = (props) => <IconBase {...props}><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" /><polyline points="10 17 15 12 10 7" /><line x1="15" x2="3" y1="12" y2="12" /></IconBase>;
+        const LogOut = (props) => <IconBase {...props}><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" x2="9" y1="12" y2="12" /></IconBase>;
+        const Music = (props) => <IconBase {...props}><path d="M9 18V5l12-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" /></IconBase>;
+        const AlertCircle = (props) => <IconBase {...props}><circle cx="12" cy="12" r="10" /><line x1="12" x2="12" y1="8" y2="12" /><line x1="12" x2="12.01" y1="16" y2="16" /></IconBase>;
+        const ListOrdered = (props) => <IconBase {...props}><line x1="10" x2="21" y1="6" y2="6" /><line x1="10" x2="21" y1="12" y2="12" /><line x1="10" x2="21" y1="18" y2="18" /><path d="M4 6h1v4" /><path d="M4 10h2" /><path d="M6 18H4c0-1 2-2 2-3s-1-1.5-2-1" /></IconBase>;
+        const Edit3 = (props) => <IconBase {...props}><path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" /></IconBase>;
+        const HelpCircle = (props) => <IconBase {...props}><circle cx="12" cy="12" r="10" /><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" /><path d="M12 17h.01" /></IconBase>;
+        const UploadCloud = (props) => <IconBase {...props}><path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242" /><path d="M12 12v9" /><path d="m16 16-4-4-4 4" /></IconBase>;
+
+
+        // --- 2. 資料庫 (HLC B1L6 Gift Exchange) ---
+        const VOCAB_DATA = [
+          { 
+            id: 1, 
+            word: 'bomb', 
+            pos: 'n.', 
+            meaning: '( 口語 ) 失敗的事物；炸彈', 
+            sentence: 'The party was a bomb. It was boring, and only two people showed up.', 
+            sentence_cn: '派對很失敗。很無聊，而且只有兩個人出席。', 
+            targetInSentence: 'bomb',
+            chunks: ['The party', 'was a bomb.', 'It was boring,', 'and only two people', 'showed up.']
+          },
+          { 
+            id: 2, 
+            word: 'relationship', 
+            pos: 'n.', 
+            meaning: '( 人際 ) 關係；( 事物的 ) 關聯', 
+            sentence: 'Mr. Jones has a good relationship with his neighbors.', 
+            sentence_cn: '瓊斯先生和他的鄰居關係很好。', 
+            targetInSentence: 'relationship',
+            chunks: ['Mr. Jones', 'has a good relationship', 'with his neighbors.']
+          },
+          { 
+            id: 3, 
+            word: 'embarrassing', 
+            pos: 'adj.', 
+            meaning: '令人尷尬的', 
+            sentence: 'Jenny wore her T-shirt inside out by mistake. That was really embarrassing for her.', 
+            sentence_cn: '珍妮不小心把T恤穿反了。這對她來說真的很尷尬。', 
+            targetInSentence: 'embarrassing',
+            chunks: ['Jenny wore', 'her T-shirt', 'inside out', 'by mistake.', 'That was really', 'embarrassing for her.']
+          },
+          { 
+            id: 4, 
+            word: 'attend', 
+            pos: 'v.', 
+            meaning: '出席，參加', 
+            sentence: 'My family will fly to New York to attend my sister\'s wedding.', 
+            sentence_cn: '我的家人將飛往紐約參加我姐姐的婚禮。', 
+            targetInSentence: 'attend',
+            chunks: ['My family', 'will fly to New York', 'to attend', 'my sister\'s wedding.']
+          },
+          { 
+            id: 5, 
+            word: 'exchange', 
+            pos: 'n.', 
+            meaning: '交換', 
+            sentence: 'Some people work in exchange for free food or rooms during their trips.', 
+            sentence_cn: '有些人在旅行期間工作以換取免費的食物或住宿。', 
+            targetInSentence: 'exchange',
+            chunks: ['Some people work', 'in exchange for', 'free food or rooms', 'during their trips.']
+          },
+          { 
+            id: 6, 
+            word: 'image', 
+            pos: 'n.', 
+            meaning: '圖像', 
+            sentence: 'The green image on the product means it is eco-friendly.', 
+            sentence_cn: '產品上的綠色圖像意味著它是環保的。', 
+            targetInSentence: 'image',
+            chunks: ['The green image', 'on the product', 'means', 'it is eco-friendly.']
+          },
+          { 
+            id: 7, 
+            word: 'seem', 
+            pos: 'v.', 
+            meaning: '似乎', 
+            sentence: 'I don\'t know Jack well, but he seems to be a nice guy.', 
+            sentence_cn: '我不太了解傑克，但他似乎是個好人。', 
+            targetInSentence: 'seems',
+            chunks: ['I don\'t know Jack well,', 'but he seems to be', 'a nice guy.']
+          },
+          { 
+            id: 8, 
+            word: 'bright', 
+            pos: 'adj.', 
+            meaning: '快樂的，開朗的；明亮的', 
+            sentence: 'The groom\'s face was bright with joy.', 
+            sentence_cn: '新郎的臉上洋溢著喜悅的光彩。', 
+            targetInSentence: 'bright',
+            chunks: ['The groom\'s face', 'was bright', 'with joy.']
+          },
+          { 
+            id: 9, 
+            word: 'moment', 
+            pos: 'n.', 
+            meaning: '時刻；一下子', 
+            sentence: 'Is this a good moment to tell you my big news?', 
+            sentence_cn: '現在告訴你我的大新聞是個好時機嗎？', 
+            targetInSentence: 'moment',
+            chunks: ['Is this', 'a good moment', 'to tell you', 'my big news?']
+          },
+          { 
+            id: 10, 
+            word: 'quite', 
+            pos: 'adv.', 
+            meaning: '相當地，很', 
+            sentence: 'This storybook is full of images and quite easy for children to read on their own.', 
+            sentence_cn: '這本故事書充滿了圖片，對孩子來說很容易自己閱讀。', 
+            targetInSentence: 'quite',
+            chunks: ['This storybook', 'is full of images', 'and quite easy', 'for children to read', 'on their own.']
+          },
+          { 
+            id: 11, 
+            word: 'advice', 
+            pos: 'n.', 
+            meaning: '建議，忠告', 
+            sentence: 'I didn\'t know which shirt looked better on me, so I asked the clerk for advice.', 
+            sentence_cn: '我不知道哪件襯衫穿在我身上比較好看，所以我向店員尋求建議。', 
+            targetInSentence: 'advice',
+            chunks: ['I didn\'t know', 'which shirt', 'looked better on me,', 'so I asked the clerk', 'for advice.']
+          },
+          { 
+            id: 12, 
+            word: 'ordinary', 
+            pos: 'adj.', 
+            meaning: '普通的，日常的', 
+            sentence: 'Today was just an ordinary school day, and nothing special happened.', 
+            sentence_cn: '今天只是個普通的上學日，沒有發生什麼特別的事。', 
+            targetInSentence: 'ordinary',
+            chunks: ['Today was just', 'an ordinary school day,', 'and nothing special', 'happened.']
+          },
+          { 
+            id: 13, 
+            word: 'original', 
+            pos: 'adj.', 
+            meaning: '新穎的；原本的', 
+            sentence: 'The popular YouTuber always comes up with original ideas for his videos.', 
+            sentence_cn: '這位受歡迎的YouTuber總是為他的影片想出新穎的點子。', 
+            targetInSentence: 'original',
+            chunks: ['The popular YouTuber', 'always comes up with', 'original ideas', 'for his videos.']
+          },
+          { 
+            id: 14, 
+            word: 'memorable', 
+            pos: 'adj.', 
+            meaning: '難忘的', 
+            sentence: 'I had some memorable moments with my family during the trip to Japan.', 
+            sentence_cn: '在去日本的旅行中，我和家人度過了一些難忘的時刻。', 
+            targetInSentence: 'memorable',
+            chunks: ['I had some', 'memorable moments', 'with my family', 'during the trip', 'to Japan.']
+          },
+          { 
+            id: 15, 
+            word: 'pick out', 
+            pos: 'phr.', 
+            meaning: '挑選出', 
+            sentence: 'Mom went around the store and picked out the necessary ingredients for our dinner.', 
+            sentence_cn: '媽媽逛了逛商店，挑選了我們晚餐所需的食材。', 
+            targetInSentence: 'picked out',
+            chunks: ['Mom went around', 'the store', 'and picked out', 'the necessary ingredients', 'for our dinner.']
+          },
+          { 
+            id: 16, 
+            word: 'make up one\'s mind', 
+            pos: 'phr.', 
+            meaning: '下定決心', 
+            sentence: 'I have made up my mind to lose weight so that I can fit in these jeans again.', 
+            sentence_cn: '我已經下定決心減肥，這樣我就能再穿上這條牛仔褲了。', 
+            targetInSentence: 'made up my mind',
+            chunks: ['I have', 'made up my mind', 'to lose weight', 'so that I can fit', 'in these jeans again.']
+          },
+          { 
+            id: 17, 
+            word: 'be about to', 
+            pos: 'phr.', 
+            meaning: '即將，剛要', 
+            sentence: 'When I was about to go out, the phone rang.', 
+            sentence_cn: '當我正要出門時，電話響了。', 
+            targetInSentence: 'was about to',
+            chunks: ['When I', 'was about to', 'go out,', 'the phone rang.']
+          },
+          { 
+            id: 18, 
+            word: 'blow up', 
+            pos: 'phr.', 
+            meaning: '炸毀，爆炸', 
+            sentence: 'Joe made a mistake while he was cooking and caused the oven to blow up.', 
+            sentence_cn: '喬在做飯時犯了一個錯誤，導致烤箱爆炸了。', 
+            targetInSentence: 'blow up',
+            chunks: ['Joe made a mistake', 'while he was cooking', 'and caused the oven', 'to blow up.']
+          }
+        ];
+
+        // --- 3. 遊戲模式 ---
+        const MODES = [
+          // 基礎單字力 (6種)
+          { id: 'listen_type', title: '聽音拼字', subtitle: '聽發音，打出正確單字', icon: <Keyboard className="w-6 h-6" />, color: 'bg-blue-500', category: '單字基礎' },
+          { id: 'listen_choose_word', title: '聽音選字', subtitle: '聽發音，選出正確英文', icon: <Ear className="w-6 h-6" />, color: 'bg-indigo-500', category: '單字基礎' },
+          { id: 'listen_choose_meaning', title: '聽音選義', subtitle: '聽發音，選出正確中文', icon: <Brain className="w-6 h-6" />, color: 'bg-purple-500', category: '單字基礎' },
+          { id: 'word_meaning_quiz', title: '英中配對', subtitle: '看英文，選出正確中文', icon: <BookOpen className="w-6 h-6" />, color: 'bg-teal-500', category: '單字基礎' },
+          { id: 'meaning_word_quiz', title: '中英配對', subtitle: '看中文，選出正確英文', icon: <BookOpen className="w-6 h-6" />, color: 'bg-green-500', category: '單字基礎' },
+          { id: 'anagram', title: '拼字重組', subtitle: '看中文，重組英文字母', icon: <RotateCcw className="w-6 h-6" />, color: 'bg-orange-500', category: '單字基礎' },
+          
+          // 進階語境力 (3種)
+          { id: 'context_choice', title: '文意字彙', subtitle: '讀句子，選出正確單字', icon: <HelpCircle className="w-6 h-6" />, color: 'bg-teal-600', category: '語境應用' },
+          { id: 'cloze_type', title: '翻譯填空', subtitle: '看句子翻譯，填入正確單字', icon: <Edit3 className="w-6 h-6" />, color: 'bg-emerald-600', category: '語境應用' },
+          { id: 'sentence_scramble', title: '句子重組', subtitle: '將打散的意群組合成正確句子', icon: <ListOrdered className="w-6 h-6" />, color: 'bg-violet-600', category: '語境應用' },
+        ];
+
+        // --- 4. 音效工具 ---
+        const playSound = (type) => {
+          const AudioContext = window.AudioContext || window.webkitAudioContext;
+          if (!AudioContext) return;
+          
+          const ctx = new AudioContext();
+
+          if (type === 'correct') {
+            const now = ctx.currentTime;
+            const notes = [523.25, 659.25, 783.99, 1046.50]; 
+            notes.forEach((freq, index) => {
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.type = index === 3 ? 'triangle' : 'sine'; 
+                osc.frequency.setValueAtTime(freq, now + index * 0.08);
+                gain.gain.setValueAtTime(0, now + index * 0.08);
+                gain.gain.linearRampToValueAtTime(0.1, now + index * 0.08 + 0.02);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + index * 0.08 + 0.4);
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.start(now + index * 0.08);
+                osc.stop(now + index * 0.08 + 0.5);
+            });
+          } else {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(150, ctx.currentTime);
+            osc.frequency.linearRampToValueAtTime(100, ctx.currentTime + 0.3);
+            gain.gain.setValueAtTime(0.1, ctx.currentTime);
+            gain.gain.linearRampToValueAtTime(0.01, ctx.currentTime + 0.3);
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start();
+            osc.stop(ctx.currentTime + 0.3);
+          }
+        };
+
+        // --- 5. Main App Component ---
+        const App = () => {
+          // --- 使用者狀態 ---
+          const [studentInfo, setStudentInfo] = useState({ class: '', seatNo: '', isLoggedIn: false });
+          const [totalScore, setTotalScore] = useState(0); 
+          const [totalTime, setTotalTime] = useState(0);
+          const [levelRecords, setLevelRecords] = useState({});
+          const [isExporting, setIsExporting] = useState(false); // 新增：匯出狀態
+
+          // --- 遊戲狀態 ---
+          const [currentMode, setCurrentMode] = useState(null);
+          const [currentIndex, setCurrentIndex] = useState(0);
+          const [currentLevelScore, setCurrentLevelScore] = useState(0);
+          const [showResult, setShowResult] = useState(false);
+          const [inputVal, setInputVal] = useState('');
+          const [feedback, setFeedback] = useState('idle');
+          const [shuffledOptions, setShuffledOptions] = useState([]);
+          const [levelTimer, setLevelTimer] = useState(0);
+          const [gameQueue, setGameQueue] = useState([]); 
+          
+          const utteranceRef = useRef(null);
+
+          // Anagram 狀態
+          const [scrambledLetters, setScrambledLetters] = useState([]);
+          const [selectedLetters, setSelectedLetters] = useState([]);
+
+          // Sentence Scramble 狀態
+          const [sentenceWords, setSentenceWords] = useState([]);
+          const [selectedSentenceWords, setSelectedSentenceWords] = useState([]);
+
+          // 判斷是否為句子相關模式
+          const isSentenceMode = ['sentence_scramble', 'context_choice', 'cloze_type'].includes(currentMode || '');
+
+          // 計時器邏輯
+          useEffect(() => {
+            let interval;
+            if (currentMode && !showResult) {
+              interval = setInterval(() => {
+                setLevelTimer(t => t + 1);
+                setTotalTime(t => t + 1);
+              }, 1000);
+            }
+            return () => clearInterval(interval);
+          }, [currentMode, showResult]);
+
+          // 語音合成
+          const speak = (text, onEnd) => {
+            window.speechSynthesis.cancel();
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = 'en-US';
+            utterance.rate = 0.8; 
+            utteranceRef.current = utterance;
+
+            if (onEnd) {
+                utterance.onend = () => {
+                    onEnd();
+                };
+            }
+            
+            window.speechSynthesis.speak(utterance);
+          };
+
+          const generateOptions = useCallback((correctWordObj) => {
+            const distractors = VOCAB_DATA.filter(w => w.id !== correctWordObj.id)
+              .sort(() => 0.5 - Math.random())
+              .slice(0, 3);
+            const options = [...distractors, correctWordObj].sort(() => 0.5 - Math.random());
+            setShuffledOptions(options);
+          }, []);
+
+          const initAnagram = useCallback((word) => {
+            const letters = word.split('').map((char, index) => ({ char, id: index }));
+            for (let i = letters.length - 1; i > 0; i--) {
+              const j = Math.floor(Math.random() * (i + 1));
+              [letters[i], letters[j]] = [letters[j], letters[i]];
+            }
+            setScrambledLetters(letters);
+            setSelectedLetters([]);
+          }, []);
+
+          const initSentenceScramble = useCallback((wordObj) => {
+            const chunks = wordObj.chunks || wordObj.sentence.split(' ');
+            const words = chunks.map((word, index) => ({ word, id: index }));
+            // Shuffle
+            const shuffled = [...words];
+            for (let i = shuffled.length - 1; i > 0; i--) {
+              const j = Math.floor(Math.random() * (i + 1));
+              [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+            }
+            setSentenceWords(shuffled);
+            setSelectedSentenceWords([]);
+          }, []);
+
+          // 開始遊戲：初始化隨機題目佇列
+          const startGame = (modeId) => {
+              // 產生隨機索引陣列
+              const indices = Array.from({ length: VOCAB_DATA.length }, (_, i) => i);
+              // 洗牌
+              for (let i = indices.length - 1; i > 0; i--) {
+                  const j = Math.floor(Math.random() * (i + 1));
+                  [indices[i], indices[j]] = [indices[j], indices[i]];
+              }
+              setGameQueue(indices);
+              setCurrentIndex(0);
+              setCurrentLevelScore(0);
+              setShowResult(false);
+              setFeedback('idle');
+              setLevelTimer(0);
+              setCurrentMode(modeId);
+          };
+
+          // 根據模式初始化 - 當 currentIndex 改變時執行
+          useEffect(() => {
+            if (!currentMode || gameQueue.length === 0) return;
+
+            const currentDataIndex = gameQueue[currentIndex];
+            const currentWord = VOCAB_DATA[currentDataIndex];
+            
+            setFeedback('idle');
+            setInputVal('');
+
+            if (['listen_choose_word', 'meaning_word_quiz', 'listen_choose_meaning', 'word_meaning_quiz', 'context_choice'].includes(currentMode)) {
+              generateOptions(currentWord);
+            } 
+            
+            if (currentMode === 'anagram') {
+              initAnagram(currentWord.word);
+            }
+
+            if (currentMode === 'sentence_scramble') {
+              initSentenceScramble(currentWord);
+            }
+            
+            // 自動發音邏輯 (僅聽力題)
+            if (['listen_type', 'listen_choose_word', 'listen_choose_meaning'].includes(currentMode)) {
+               setTimeout(() => speak(currentWord.word), 500);
+            } 
+
+          }, [currentIndex, currentMode, gameQueue, generateOptions, initAnagram, initSentenceScramble]);
+
+          // --- 取得當前題目資料 (Helper) ---
+          const getCurrentWordData = () => {
+              if (gameQueue.length === 0) return VOCAB_DATA[0]; // Fallback
+              return VOCAB_DATA[gameQueue[currentIndex]];
+          };
+
+          // --- Updated handleCorrect to include speech for all modes ---
+          const handleCorrect = () => {
+            setFeedback('correct');
+            playSound('correct');
+            const points = 10;
+            setCurrentLevelScore(s => s + points);
+            setTotalScore(s => s + points);
+            
+            const currentWord = getCurrentWordData();
+
+            // Check if it's a sentence mode or a basic vocab mode
+            if (isSentenceMode) {
+                // Sentence Modes: Read full sentence
+                setTimeout(() => {
+                    speak(currentWord.sentence, () => {
+                        setTimeout(() => nextQuestion(), 1000);
+                    });
+                }, 500);
+            } else {
+                // Basic Vocab Modes: Read single word
+                setTimeout(() => {
+                    speak(currentWord.word, () => {
+                        setTimeout(() => nextQuestion(), 1000);
+                    });
+                }, 500);
+            }
+          };
+
+          const handleWrong = () => {
+            setFeedback('wrong');
+            playSound('wrong');
+            setTimeout(() => {
+                setFeedback('idle'); 
+                if (['listen_choose_word', 'listen_choose_meaning', 'context_choice', 'word_meaning_quiz', 'meaning_word_quiz'].includes(currentMode)) {
+                   nextQuestion(); 
+                }
+            }, 1500);
+          };
+
+          const handleOptionClick = (option) => {
+            if (feedback !== 'idle') return;
+            const currentWord = getCurrentWordData();
+            if (option.id === currentWord.id) {
+              handleCorrect();
+            } else {
+              handleWrong();
+            }
+          };
+
+          const handleInputSubmit = (e) => {
+            e.preventDefault();
+            if (feedback !== 'idle') return;
+            const currentWord = getCurrentWordData();
+            
+            let isCorrect = false;
+            const cleanInput = inputVal.toLowerCase().trim();
+
+            if (currentMode === 'listen_type') {
+                isCorrect = cleanInput === currentWord.word.toLowerCase();
+            } else if (currentMode === 'cloze_type') {
+                isCorrect = cleanInput === currentWord.targetInSentence.toLowerCase();
+            }
+
+            if (isCorrect) {
+              handleCorrect();
+            } else {
+              handleWrong();
+            }
+          };
+
+          const handleAnagramClick = (item, from) => {
+            if (feedback !== 'idle') return;
+            if (from === 'scrambled') {
+              setScrambledLetters(prev => prev.filter(l => l.id !== item.id));
+              setSelectedLetters(prev => [...prev, item]);
+            } else {
+              setSelectedLetters(prev => prev.filter(l => l.id !== item.id));
+              setScrambledLetters(prev => [...prev, item]);
+            }
+          };
+
+          const handleSentenceWordClick = (item, from) => {
+              if (feedback !== 'idle') return;
+              if (from === 'pool') {
+                  setSentenceWords(prev => prev.filter(w => w.id !== item.id));
+                  setSelectedSentenceWords(prev => [...prev, item]);
+              } else {
+                  setSelectedSentenceWords(prev => prev.filter(w => w.id !== item.id));
+                  setSentenceWords(prev => [...prev, item]);
+              }
+          };
+
+          // 檢查自動完成
+          useEffect(() => {
+            if (feedback !== 'idle') return;
+            const currentWord = getCurrentWordData();
+
+            if (currentMode === 'anagram') {
+                const userSpelling = selectedLetters.map(l => l.char).join('');
+                if (userSpelling.length === currentWord.word.length) {
+                    if (userSpelling.toLowerCase() === currentWord.word.toLowerCase()) {
+                        handleCorrect();
+                    } else {
+                        setFeedback('wrong');
+                        playSound('wrong');
+                        setTimeout(() => {
+                            setFeedback('idle');
+                            initAnagram(currentWord.word);
+                        }, 1000);
+                    }
+                }
+            } else if (currentMode === 'sentence_scramble') {
+                if (sentenceWords.length === 0 && selectedSentenceWords.length > 0) {
+                    const userSentence = selectedSentenceWords.map(w => w.word).join(''); 
+                    const cleanUserSentence = userSentence.replace(/\s+/g, '');
+                    const cleanTargetSentence = currentWord.sentence.replace(/\s+/g, '');
+
+                    if (cleanUserSentence === cleanTargetSentence) {
+                        handleCorrect();
+                    } else {
+                        setFeedback('wrong');
+                        playSound('wrong');
+                        setTimeout(() => {
+                            setFeedback('idle');
+                            initSentenceScramble(currentWord);
+                        }, 1000);
+                    }
+                }
+            }
+          }, [selectedLetters, selectedSentenceWords, currentMode, currentIndex, gameQueue, feedback, initAnagram, initSentenceScramble]);
+
+          const nextQuestion = () => {
+            if (currentIndex < VOCAB_DATA.length - 1) {
+              setCurrentIndex(c => c + 1);
+            } else {
+              setShowResult(true);
+            }
+          };
+
+          const returnToMenu = () => {
+            window.speechSynthesis.cancel();
+            
+            if (currentMode) {
+                setLevelRecords(prev => {
+                    const prevRecord = prev[currentMode] || { score: 0, time: 0 };
+                    return {
+                        ...prev,
+                        [currentMode]: {
+                            score: prevRecord.score + currentLevelScore,
+                            time: prevRecord.time + levelTimer
+                        }
+                    };
+                });
+            }
+
+            setCurrentMode(null);
+            setCurrentIndex(0);
+            setCurrentLevelScore(0);
+            setShowResult(false);
+            setFeedback('idle');
+            setLevelTimer(0);
+            setGameQueue([]); 
+          };
+
+          // --- 匯出功能 (修正版) ---
+          const handleExport = async () => {
+              if (GOOGLE_SCRIPT_URL.includes("請將您的 Web App URL 貼在這裡")) {
+                  alert("請先在程式碼中設定 Google Apps Script URL！");
+                  return;
+              }
+
+              setIsExporting(true);
+              const data = {
+                  studentInfo,
+                  totalScore,
+                  totalTime,
+                  levelRecords
+              };
+
+              try {
+                  // 使用 no-cors 模式發送 POST 請求
+                  // 並明確指定 content-type 為 text/plain
+                  await fetch(GOOGLE_SCRIPT_URL, {
+                      method: "POST",
+                      mode: "no-cors", 
+                      headers: {
+                          "Content-Type": "text/plain;charset=utf-8"
+                      },
+                      body: JSON.stringify(data)
+                  });
+                  
+                  // 因為 no-cors，無法讀取回應狀態，但只要網路正常通常會成功
+                  alert("資料匯出請求已發送！\n若 Google 試算表未更新，請確認：\n1. 腳本已部署為 Web App\n2. 權限設定為 'Anyone' (所有人)");
+              } catch (error) {
+                  console.error("Export error:", error);
+                  alert("匯出失敗 (Failed to fetch)。\n這可能是因為：\n1. 瀏覽器阻擋了跨域請求 (CORS)\n2. 網址錯誤\n3. 在預覽環境中被阻擋 (請在 Google Sites 測試)");
+              } finally {
+                  setIsExporting(false);
+              }
+          };
+
+          const handleLogin = (e) => {
+            e.preventDefault();
+            if (studentInfo.class && studentInfo.seatNo) {
+                setStudentInfo(prev => ({ ...prev, isLoggedIn: true }));
+            }
+          };
+
+          const formatTime = (seconds) => {
+            const mins = Math.floor(seconds / 60);
+            const secs = seconds % 60;
+            return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+          };
+
+          const getClozeSentence = (sentence, target) => {
+              const lowerSentence = sentence.toLowerCase();
+              const lowerTarget = target.toLowerCase();
+              const index = lowerSentence.indexOf(lowerTarget);
+              
+              if (index === -1) return sentence; 
+
+              const before = sentence.substring(0, index);
+              const after = sentence.substring(index + target.length);
+              
+              return (
+                  <span>
+                      {before}
+                      <span className="inline-block border-b-4 border-teal-500 w-24 mx-1"></span>
+                      {after}
+                  </span>
+              );
+          };
+
+          const ProgressBar = () => (
+            <div className="w-full bg-slate-200 rounded-full h-3 mb-6 overflow-hidden">
+              <div 
+                className="bg-teal-500 h-full transition-all duration-300 ease-out" 
+                style={{ width: `${((currentIndex) / VOCAB_DATA.length) * 100}%` }}
+              ></div>
+            </div>
+          );
+
+          const FeedbackOverlay = () => {
+            if (isSentenceMode && feedback === 'correct') return null;
+            if (feedback === 'idle') return null;
+            return (
+              <div className={`absolute inset-0 flex items-center justify-center bg-opacity-20 z-10 backdrop-blur-sm rounded-3xl pointer-events-none transition-colors duration-300
+                ${feedback === 'correct' ? 'bg-green-500/10' : 'bg-red-500/10'}
+              `}>
+                <div className={`transform scale-150 p-6 rounded-full bg-white shadow-2xl animate-bounce
+                  ${feedback === 'correct' ? 'text-green-600' : 'text-red-600'}
+                `}>
+                  {feedback === 'correct' ? <Check size={64} strokeWidth={3} /> : <X size={64} strokeWidth={3} />}
+                </div>
+              </div>
+            );
+          };
+
+          // --- UI Rendering ---
+
+          if (!studentInfo.isLoggedIn) {
+              return (
+                  <div className="min-h-screen bg-gradient-to-br from-teal-500 to-cyan-600 flex items-center justify-center p-4">
+                      <div className="bg-white p-8 md:p-12 rounded-3xl shadow-2xl max-w-md w-full">
+                          <div className="flex justify-center mb-6">
+                            <div className="p-4 bg-teal-100 rounded-full text-teal-600">
+                                <LogIn size={40} />
+                            </div>
+                          </div>
+                          <h1 className="text-3xl font-extrabold text-slate-800 text-center mb-2">單字大挑戰</h1>
+                          <p className="text-slate-500 text-center mb-8">請輸入你的班級座號以開始</p>
+                          <form onSubmit={handleLogin} className="space-y-4">
+                              <div>
+                                  <label className="block text-sm font-bold text-slate-700 mb-1">班級 (Class)</label>
+                                  <input type="text" required placeholder="例如: 801" className="w-full p-3 border-2 border-slate-200 rounded-xl focus:border-teal-500 outline-none text-lg" value={studentInfo.class} onChange={e => setStudentInfo({...studentInfo, class: e.target.value})} />
+                              </div>
+                              <div>
+                                  <label className="block text-sm font-bold text-slate-700 mb-1">座號 (Seat No.)</label>
+                                  <input type="text" required placeholder="例如: 05" className="w-full p-3 border-2 border-slate-200 rounded-xl focus:border-teal-500 outline-none text-lg" value={studentInfo.seatNo} onChange={e => setStudentInfo({...studentInfo, seatNo: e.target.value})} />
+                              </div>
+                              <button type="submit" className="w-full bg-teal-600 hover:bg-teal-700 text-white py-4 rounded-xl font-bold text-lg shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-1 mt-4">開始挑戰</button>
+                          </form>
+                      </div>
+                  </div>
+              )
+          }
+
+          if (showResult) {
+            return (
+              <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+                <div className="bg-white p-8 rounded-3xl shadow-xl max-w-md w-full text-center border-t-8 border-teal-500">
+                  <Trophy className="w-24 h-24 text-yellow-400 mx-auto mb-6 drop-shadow-md" />
+                  <h2 className="text-3xl font-bold text-slate-800 mb-2">關卡完成!</h2>
+                  <p className="text-slate-500 mb-8 font-medium">{MODES.find(m => m.id === currentMode)?.title}</p>
+                  <div className="grid grid-cols-2 gap-4 mb-8">
+                    <div className="bg-teal-50 p-4 rounded-2xl">
+                        <div className="text-sm text-teal-600 font-bold mb-1">本關得分</div>
+                        <div className="text-3xl font-extrabold text-teal-700">{currentLevelScore}</div>
+                    </div>
+                    <div className="bg-orange-50 p-4 rounded-2xl">
+                        <div className="text-sm text-orange-600 font-bold mb-1">本關時間</div>
+                        <div className="text-3xl font-extrabold text-orange-700">{formatTime(levelTimer)}</div>
+                    </div>
+                  </div>
+                  <div className="bg-slate-100 p-4 rounded-xl mb-8 flex justify-between items-center">
+                     <div className="text-left">
+                        <div className="text-xs text-slate-500 font-bold">總分</div>
+                        <div className="text-xl font-bold text-blue-600">{totalScore}</div>
+                     </div>
+                     <div className="text-right">
+                        <div className="text-xs text-slate-500 font-bold">總時間</div>
+                        <div className="text-xl font-bold text-blue-600">{formatTime(totalTime)}</div>
+                     </div>
+                  </div>
+                  <button onClick={returnToMenu} className="w-full bg-teal-600 text-white py-4 rounded-xl font-bold hover:bg-teal-700 transition-colors flex items-center justify-center gap-2 text-lg shadow-lg">
+                    <RotateCcw size={20} />
+                    返回主選單
+                  </button>
+                </div>
+              </div>
+            );
+          }
+
+          if (!currentMode) {
+            const basicModes = MODES.filter(m => m.category === '單字基礎');
+            const advancedModes = MODES.filter(m => m.category === '語境應用');
+            
+            const renderModeButton = (mode) => {
+                const record = levelRecords[mode.id];
+                return (
+                    <button key={mode.id} onClick={() => startGame(mode.id)} className="bg-white p-6 rounded-3xl shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all text-left border-2 border-transparent hover:border-blue-500 group relative overflow-hidden w-full">
+                        {record && (
+                            <div className="absolute top-4 right-4 text-right">
+                                <div className="text-xs font-bold text-slate-400 font-mono">{formatTime(record.time)}</div>
+                                <div className="text-sm font-black text-teal-600">Score: {record.score}</div>
+                            </div>
+                        )}
+                        <div className={`inline-flex p-3 rounded-2xl ${mode.color} text-white mb-4 shadow-lg`}>{mode.icon}</div>
+                        <h3 className="text-xl font-bold text-slate-800 group-hover:text-blue-600 mb-1">{mode.title}</h3>
+                        <p className="text-sm text-slate-500">{mode.subtitle}</p>
+                    </button>
+                );
+            };
+
+            return (
+              <div className="min-h-screen bg-slate-50 p-4 md:p-8 font-sans">
+                <div className="max-w-5xl mx-auto">
+                  <div className="flex flex-col md:flex-row justify-between items-center bg-white p-4 rounded-2xl shadow-sm mb-8 border border-slate-100">
+                     <div className="flex items-center gap-4 mb-4 md:mb-0 w-full md:w-auto">
+                        <div className="w-12 h-12 bg-teal-100 rounded-full flex items-center justify-center text-teal-600 font-bold text-xl">{studentInfo.seatNo}</div>
+                        <div>
+                            <div className="text-xs text-slate-400 font-bold uppercase tracking-wider">Student</div>
+                            <div className="text-slate-700 font-bold text-lg">{studentInfo.class} 班</div>
+                        </div>
+                     </div>
+                     <div className="flex flex-wrap items-center justify-end gap-2 md:gap-6 w-full md:w-auto mt-4 md:mt-0">
+                        {/* 匯出按鈕 */}
+                        <button 
+                            onClick={handleExport}
+                            disabled={isExporting}
+                            className={`flex items-center gap-1 px-4 py-2 rounded-xl text-white font-bold shadow-md transition-all
+                                ${isExporting ? 'bg-slate-400 cursor-not-allowed' : 'bg-emerald-500 hover:bg-emerald-600 active:scale-95'}
+                            `}
+                        >
+                            {isExporting ? (
+                                <span>匯出中...</span>
+                            ) : (
+                                <>
+                                    <UploadCloud size={20} />
+                                    <span>匯出紀錄</span>
+                                </>
+                            )}
+                        </button>
+
+                        <div className="text-right">
+                            <div className="text-xs text-slate-400 font-bold uppercase">Total Time</div>
+                            <div className="text-xl font-bold text-orange-600 font-mono">{formatTime(totalTime)}</div>
+                        </div>
+                        <div className="text-right">
+                            <div className="text-xs text-slate-400 font-bold uppercase">Total Score</div>
+                            <div className="text-2xl font-black text-teal-600">{totalScore}</div>
+                        </div>
+                        <button onClick={() => setStudentInfo({...studentInfo, isLoggedIn: false, class: '', seatNo: ''})} className="p-2 text-slate-400 hover:text-red-500 transition-colors" title="登出">
+                            <LogOut size={24}/>
+                        </button>
+                     </div>
+                  </div>
+
+                  <header className="mb-8 md:mb-12">
+                    <h1 className="text-3xl md:text-4xl font-extrabold text-slate-800 mb-2">單字大挑戰 <span className="text-teal-500">HLC B1L6 Gift Exchange</span></h1>
+                    <p className="text-slate-600 flex items-center gap-2"><AlertCircle size={16} />完成所有任務，挑戰最高分！</p>
+                  </header>
+
+                  <div className="mb-8">
+                    <h2 className="text-xl font-bold text-slate-700 mb-4 pl-2 border-l-4 border-blue-500">第一階段：單字基礎</h2>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {basicModes.map(mode => renderModeButton(mode))}
+                    </div>
+                  </div>
+
+                  <div className="mb-12">
+                    <h2 className="text-xl font-bold text-slate-700 mb-4 pl-2 border-l-4 border-teal-500">第二階段：語境應用</h2>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {advancedModes.map(mode => renderModeButton(mode))}
+                    </div>
+                  </div>
+
+                  <div className="mt-12">
+                     <h3 className="font-bold text-slate-700 mb-4 flex items-center gap-2 text-lg"><BookOpen size={24} className="text-teal-500"/>本單元單字列表 ({VOCAB_DATA.length})</h3>
+                     <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                        {VOCAB_DATA.map(v => (
+                            <div key={v.id} className="text-sm border-b border-slate-50 pb-2">
+                                <span className="font-bold text-slate-700 block">{v.word}</span>
+                                <span className="text-slate-400 text-xs">{v.meaning}</span>
+                            </div>
+                        ))}
+                     </div>
+                  </div>
+                </div>
+              </div>
+            );
+          }
+
+          const currentWord = getCurrentWordData(); 
+
+          return (
+            <div className="min-h-screen bg-slate-50 flex flex-col items-center p-4">
+              <div className="w-full max-w-2xl flex items-center justify-between mb-6 bg-white p-3 rounded-2xl shadow-sm mt-2">
+                <button onClick={returnToMenu} className="flex items-center gap-1 text-slate-500 hover:text-red-600 px-3 py-2 rounded-lg hover:bg-red-50 transition-colors font-bold text-sm">
+                  <LogOut size={18} />退出
+                </button>
+                <div className="flex items-center gap-6 font-mono text-slate-600 font-bold">
+                    <div className="flex items-center gap-2" title="Total Time"><Clock size={18} className="text-orange-500"/>{formatTime(totalTime)}</div>
+                    <div className="flex items-center gap-2" title="Level Score"><Trophy size={18} className="text-teal-500"/>{currentLevelScore}</div>
+                </div>
+                <div className="text-sm font-bold text-slate-400 px-3 py-1 bg-slate-100 rounded-lg">{currentIndex + 1} / {VOCAB_DATA.length}</div>
+              </div>
+
+              <div className="w-full max-w-2xl px-2"><ProgressBar /></div>
+
+              <div className="w-full max-w-2xl bg-white rounded-3xl shadow-2xl p-6 md:p-12 relative overflow-hidden min-h-[400px] flex flex-col items-center justify-center border-b-8 border-teal-600">
+                <FeedbackOverlay />
+
+                {/* 統一成功回饋 (句子模式) */}
+                {isSentenceMode && feedback === 'correct' ? (
+                     <div className="animate-in fade-in zoom-in duration-500 text-center flex flex-col items-center justify-center h-full min-h-[300px]">
+                         <div className="inline-flex items-center justify-center p-4 bg-green-100 rounded-full text-green-600 mb-6"><Check size={48} /></div>
+                         <h2 className="text-2xl md:text-4xl font-bold text-slate-800 mb-4 leading-relaxed max-w-2xl">{currentWord.sentence}</h2>
+                         <p className="text-xl text-slate-500 font-medium">{currentWord.sentence_cn}</p>
+                     </div>
+                ) : (
+                    <>
+                        <div className="mb-8 text-center w-full">
+                          {['listen_type', 'listen_choose_word', 'listen_choose_meaning'].includes(currentMode) && (
+                            <button onClick={() => speak(currentWord.word)} className="w-20 h-20 bg-gradient-to-br from-teal-400 to-teal-600 hover:from-teal-500 hover:to-teal-700 text-white rounded-full flex items-center justify-center mx-auto mb-8 shadow-xl shadow-teal-200 transform transition-transform active:scale-95 group">
+                                <Volume2 size={36} className="group-hover:animate-pulse"/>
+                            </button>
+                          )}
+
+                          {currentMode === 'word_meaning_quiz' && (
+                            <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+                                <h2 className="text-4xl md:text-5xl font-black text-slate-800 mb-3">{currentWord.word}</h2>
+                                <p className="text-slate-500 text-lg italic font-serif bg-slate-100 inline-block px-3 py-1 rounded-lg">{currentWord.pos}</p>
+                            </div>
+                          )}
+
+                          {['meaning_word_quiz', 'anagram', 'cloze_type'].includes(currentMode) && (
+                            <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+                                {currentMode === 'cloze_type' ? (
+                                   <h2 className="text-2xl md:text-3xl font-bold text-slate-800 mb-2 leading-relaxed">{currentWord.sentence_cn}</h2>
+                                ) : (
+                                   <h2 className="text-3xl md:text-4xl font-bold text-slate-800 mb-2">{currentWord.meaning}</h2>
+                                )}
+                            </div>
+                          )}
+
+                          {['context_choice', 'cloze_type'].includes(currentMode) && (
+                              <div className="text-xl md:text-2xl font-medium text-slate-700 leading-relaxed max-w-xl mx-auto my-4 bg-slate-50 p-6 rounded-2xl border-l-4 border-teal-500">
+                                  {currentMode === 'cloze_type' 
+                                    ? getClozeSentence(currentWord.sentence, currentWord.targetInSentence)
+                                    : currentMode === 'context_choice'
+                                        ? getClozeSentence(currentWord.sentence, currentWord.targetInSentence)
+                                        : null
+                                  }
+                              </div>
+                          )}
+
+                          {currentMode === 'listen_type' && <p className="text-slate-400 font-medium">請聽發音並輸入英文單字</p>}
+                          {currentMode === 'sentence_scramble' && <h2 className="text-xl font-bold text-slate-500 mb-6">請重組以下句子</h2>}
+                        </div>
+
+                        <div className="w-full">
+                          {['listen_type', 'cloze_type'].includes(currentMode) && (
+                            <form onSubmit={handleInputSubmit} className="w-full max-w-md mx-auto">
+                              <input type="text" value={inputVal} onChange={(e) => setInputVal(e.target.value)} className="w-full text-center text-3xl font-mono border-b-4 border-slate-200 focus:border-teal-500 outline-none py-4 bg-transparent text-slate-800 placeholder-slate-200 transition-colors" placeholder={currentMode === 'cloze_type' ? 'Type the missing word...' : 'Type here...'} autoFocus autoComplete="off" />
+                              <button type="submit" className="mt-8 w-full bg-teal-600 text-white py-4 rounded-xl font-bold hover:bg-teal-700 shadow-lg hover:shadow-xl transition-all">送出答案</button>
+                            </form>
+                          )}
+
+                          {['listen_choose_word', 'listen_choose_meaning', 'word_meaning_quiz', 'meaning_word_quiz', 'context_choice'].includes(currentMode) && (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              {shuffledOptions.map((opt) => (
+                                <button key={opt.id} onClick={() => handleOptionClick(opt)} className="p-6 rounded-2xl border-2 border-slate-100 bg-white hover:border-teal-400 hover:bg-teal-50 transition-all text-lg font-bold text-slate-600 hover:text-teal-700 flex flex-col items-center justify-center gap-1 min-h-[100px] shadow-sm hover:shadow-md active:scale-95">
+                                  {currentMode === 'context_choice' && <span className="text-xl font-bold">{opt.word}</span>}
+                                  {['listen_choose_meaning', 'word_meaning_quiz'].includes(currentMode) && currentMode !== 'context_choice' && <span className="text-xl">{opt.meaning}</span>}
+                                  {['listen_choose_word', 'meaning_word_quiz'].includes(currentMode) && currentMode !== 'context_choice' && (
+                                     <>
+                                        <span className="text-2xl font-bold mb-1">{opt.word}</span>
+                                        <span className="text-xs font-normal text-slate-400 bg-slate-100 px-2 py-0.5 rounded">{opt.pos}</span>
+                                     </>
+                                  )}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+
+                          {currentMode === 'anagram' && (
+                            <div className="flex flex-col items-center gap-8">
+                              <div className="flex flex-wrap gap-2 min-h-[70px] p-4 bg-slate-50 rounded-2xl items-center justify-center w-full border border-slate-200 border-dashed">
+                                 {selectedLetters.map((item) => (
+                                   <button key={item.id} onClick={() => handleAnagramClick(item, 'selected')} className="w-10 h-12 md:w-12 md:h-14 bg-teal-600 text-white rounded-lg shadow-[0_4px_0_rgb(13,148,136)] active:shadow-none active:translate-y-[4px] font-mono text-2xl font-bold transition-all flex items-center justify-center">{item.char === ' ' ? '_' : item.char}</button>
+                                 ))}
+                              </div>
+                              <div className="flex flex-wrap justify-center gap-3">
+                                 {scrambledLetters.map((item) => (
+                                   <button key={item.id} onClick={() => handleAnagramClick(item, 'scrambled')} className="w-10 h-12 md:w-12 md:h-14 bg-white border-2 border-slate-200 text-slate-700 rounded-lg shadow-sm hover:border-teal-400 font-mono text-2xl font-bold hover:-translate-y-1 transition-transform flex items-center justify-center">{item.char === ' ' ? '␣' : item.char}</button>
+                                 ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {currentMode === 'sentence_scramble' && (
+                            <div className="flex flex-col items-center gap-8 w-full">
+                               <div className="flex flex-wrap gap-2 min-h-[100px] p-4 bg-slate-50 rounded-2xl items-start content-start justify-start w-full border border-slate-200 border-dashed">
+                                   {selectedSentenceWords.length === 0 && <span className="text-slate-400 w-full text-center mt-2">點擊下方單字卡重組句子</span>}
+                                   {selectedSentenceWords.map((item) => (
+                                       <button key={item.id} onClick={() => handleSentenceWordClick(item, 'answer')} className="px-3 py-2 bg-violet-600 text-white rounded-lg shadow-md font-medium hover:bg-violet-700 text-lg transition-all">{item.word}</button>
+                                   ))}
+                               </div>
+                               <div className="flex flex-wrap justify-center gap-3">
+                                   {sentenceWords.map((item) => (
+                                       <button key={item.id} onClick={() => handleSentenceWordClick(item, 'pool')} className="px-3 py-2 bg-white border-2 border-slate-200 text-slate-700 rounded-lg shadow-sm hover:border-violet-400 font-medium hover:-translate-y-1 transition-transform text-lg">{item.word}</button>
+                                   ))}
+                               </div>
+                            </div>
+                          )}
+                        </div>
+                    </>
+                )}
+              </div>
+              <div className="mt-8 text-slate-400 text-sm flex items-center gap-2 opacity-70"><Music size={14} />{currentMode === 'listen_type' ? '提示: 仔細聆聽發音中的母音變化' : '開啟音量以獲得最佳體驗'}</div>
+            </div>
+          );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
