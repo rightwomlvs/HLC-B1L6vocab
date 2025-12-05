@@ -48,6 +48,10 @@
         // =================================================================
         const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycby_ItBq4a52QohWZtiHJQwnXsuaIqwxSuLcIy47jLZxK5rR3LtV3DT7h9G5NBv-PGA5/exec"; 
         
+        // 設定本單元的標題 (顯示於介面並用於匯出識別)
+        const GAME_TITLE = "HLC B1L6 Gift Exchange";
+
+
         // --- 1. SVG Icons (取代 Lucide-react) ---
         const IconBase = ({ size = 24, className = "", children, ...props }) => (
             <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} {...props}>{children}</svg>
@@ -634,7 +638,8 @@
                   studentInfo,
                   totalScore,
                   totalTime,
-                  levelRecords
+                  levelRecords,
+                  gameTitle: GAME_TITLE
               };
 
               try {
@@ -847,7 +852,7 @@
                   </div>
 
                   <header className="mb-8 md:mb-12">
-                    <h1 className="text-3xl md:text-4xl font-extrabold text-slate-800 mb-2">單字大挑戰 <span className="text-teal-500">HLC B1L6 Gift Exchange</span></h1>
+                    <h1 className="text-3xl md:text-4xl font-extrabold text-slate-800 mb-2">單字大挑戰 <span className="text-teal-500">{GAME_TITLE}</span></h1>
                     <p className="text-slate-600 flex items-center gap-2"><AlertCircle size={16} />完成所有任務，挑戰最高分！</p>
                   </header>
 
